@@ -1,6 +1,6 @@
 ---
-title: "Analysis of US change in performance on the PISA assessment 2000-2018"
-output: github_document
+title: "Analysis of US change in performance on the PISA assessment 2000-2018 as an application of slope"
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=F,message=F)
 > Analysis by [Matt Wilkins, PhD](https://www.mattwilkinsbio.com)  
   Data downloaded from the [National Center for Education Statistics](https://nces.ed.gov/surveys/pisa/idepisa/report.aspx?p=1%C3%81RMS%C3%811%C3%8120183%C3%8020153%C3%8020123%C3%8020093%C3%8020063%C3%8020033%C3%8020003%C3%81PVMATH%C3%81TOTAL%C3%81IN3%C3%80AUS%C3%80AUT%C3%80BEL%C3%80CAN%C3%80CHL%C3%80COL%C3%80CZE%C3%80DNK%C3%80EST%C3%80FIN%C3%80FRA%C3%80DEU%C3%80GRC%C3%80HUN%C3%80ISL%C3%80IRL%C3%80ISR%C3%80ITA%C3%80JPN%C3%80KOR%C3%80LVA%C3%80LUX%C3%80MEX%C3%80NLD%C3%80NZL%C3%80NOR%C3%80POL%C3%80PRT%C3%80SVK%C3%80SVN%C3%80ESP%C3%80SWE%C3%80CHE%C3%80TUR%C3%80GBR%C3%80USA%C3%80RUS%C3%80QCN%C3%80SGP%C3%80ARE%C3%80VNM%C3%81MN%C3%82MN%C3%81Y%C3%82J%C3%810%C3%810%C3%8137%C3%81N&Lang=1033)
 
-##### Just a simple look at PISA statistics for the US and a few other jurisdictions
+##### Just a simple look at [PISA (Programme for International Student Assessment)](https://nces.ed.gov/surveys/pisa/index.asp) statistics for the US and a few other jurisdictions
 
 1. First, we'll plot math, reading, and science scores for available PISA data from 2000-2018 for the US and a few "jurisdictions" of interest.
 
@@ -24,7 +24,7 @@ Below, I include the [R](https://www.r-project.org/) code to wrangle data and ge
 require(remotes)
 install_github("galacticpolymath/galacticPubs") #custom theme stuff
 require(pacman)
-p_load(ggplot2,readxl,dplyr,galacticPubs)
+p_load(ggplot2,readxl,dplyr,galacticPubs,reshape2,ggiraph)
 d<-read_xlsx("data/pisa-data_2000-2018_tidy.xlsx")
 #Rename Long name(s)
 d$jurisdiction <- recode(d$jurisdiction,`International Average (OECD Countries)`="Avg of OECD Countries")
@@ -67,10 +67,11 @@ G
   require(reshape2)
   # Sum all the scores for each country for each year
   d3 = melt(d2[,c("year","jurisdiction","average")],id=c("year","jurisdiction")) %>% dcast(.,formula=jurisdiction+year~variable,fun.aggregate=sum)
+  names(d3)[3]<-"combined_average"
   
   #Now plot the result
   G2= d3 %>% subset(.,jurisdiction%in%for_comparison) %>% 
-  ggplot(.,aes(x=year,y=average,col=jurisdiction))+ylim(1350,1800)+
+  ggplot(.,aes(x=year,y=combined_average,col=jurisdiction))+ylim(1350,1800)+
   geom_point()+geom_smooth(method="lm",se=F,formula='y~x')+
   ggGalactic(font.cex =.8)+
   theme(strip.text=element_text(size=16))+
@@ -83,6 +84,7 @@ G
 ``` {r echo=F, fig.width=12, fig.height=6}
 G2
 ```
+
 ##### Because the science test wasn't offered initially (or in the same years), this reduces the range of our data. But the combined US PISA scores are incredibly flat for the last decade. 
 
 -----
@@ -94,10 +96,10 @@ G2
   us<-subset(d3,jurisdiction=="United States")
   us
   #fit a line (it's just 4 points, but hey, we're not testing for significance)
-  mod<-lm(average~year,data=us,na.rm=T)
+  mod<-lm(combined_average~year,data=us,na.rm=T)
   mod_form<-paste0("y = ",round(coef(mod)[2],2),"x + ",round(coef(mod)[1],2))
   #make graph and add formula to it
-  G3 <- us %>%  ggplot(.,aes(x=year,y=average,col=jurisdiction))+
+  G3 <- us %>%  ggplot(.,aes(x=year,y=combined_average,col=jurisdiction))+
   geom_point(size=3)+geom_smooth(method="lm",se=F,formula='y~x')+
   ggGalactic(font.cex =.8)+ylim(1350,1800)+
   theme(strip.text=element_text(size=16))+
@@ -113,3 +115,103 @@ G3
 ```
 
 ##### US average combined PISA scores have declined by almost a point per year between 2009 and 2018. That is to say, the aggregate scores have not changed meaningfully, despite [numerous expensive, ongoing educational reforms across the country](https://time.com/5775795/education-reform-failed-america/).
+
+----
+#### But maybe raw points are not very meaningful. How have ranks changed?
+
+These are the subset of countries (+the OECD average) included in the ranks:
+<details>
+  <summary style="color: #7A7A7A"> Click for code & country/jurisdiction list </summary>
+```{r results='show'}
+#recalculate ranks based on combined PISA scores (all subject scores added together)
+d4 <-  lapply(sort(unique(d3$year)),function(i) {
+        d_i <- subset(d3,year==i)
+        d_i$rank<-rank(-d_i$combined_average,na.last="keep",ties.method="average")
+        d_i
+      }) %>% bind_rows()
+d4$jurisdiction %>% unique()
+
+```
+</details>
+
+And here is the plot of country ranks by combined PISA averages for science, math, and reading.
+<details>
+  <summary style="color: #7A7A7A"> Click for code </summary>
+```{r analysis-4-ranks, results='show', fig.width=12, fig.height=6}
+  #get models for all countries & make hover text summary
+  hoverText<-sapply(unique(d4$jurisdiction),function(x){
+      d_x<-subset(d4,jurisdiction==x&complete.cases(rank))
+      if(nrow(d_x)<3){mod_form=status= "Not enough data yet"
+      }else{
+        mod_x<-lm(-rank~year,data=d_x,na.rm=T)
+        mod_form<-paste0("y = ",round(coef(mod_x)[2],2),"x + ",round(coef(mod_x)[1],2))
+        #make status statement based on slope
+        #Use slope of .25 as threshold (improving, declining or staying the same within 4 yrs)
+        status<-{if(coef(mod_x)[2]>.25){"improving"
+        }else if(coef(mod_x)[2]<(-.25)){"declining"
+        }else if(coef(mod_x)[2]>-.25 & coef(mod_x)[2]<.25){"steady"}}
+      }
+      maxRank<-max(d_x$rank,na.rm=T)
+      maxYear<-d_x$year[which.max(d_x$rank)]
+      minRank<-min(d_x$rank,na.rm=T)
+      minYear<-d_x$year[which.min(d_x$rank)]
+      
+      #switched max/min in the output due to interpretation of 1 as a higher rank
+      return(assign(x,paste0(toupper(x),"\nStatus: ",status,"\n",mod_form,"\nHighest: ",minRank," (",minYear,")\nLowest: ",maxRank," (",maxYear,")")))
+  }) 
+#Add formulas to the data frame
+d4$hoverText<-hoverText[match(d4$jurisdiction,names(hoverText))]
+
+#Make certain countries stand out a little
+  focal_jur<-c("United States","Canada","Avg of OECD Countries")
+  d4$colCode<-0
+  #change focal jurisdictions to number codes 1=US, 2=Canada, 3=avg oecd
+  for(i in 1:length(focal_jur)){d4$colCode[which(d4$jurisdiction==focal_jur[i])]<-i}
+  d4$colCode<-as.factor(ifelse(is.na(d4$rank),NA,d4$colCode))
+  #make a literal vector of colors, as well. We'll still use colCode to style shapes,etc
+  colVec<-ifelse(d4$colCode==0,"gray80","gray30") #make 0s light gray, and the highlighted countries darker gray
+  #I seem to need yet another vector of just the country colors
+  colVec_jur<-ifelse(d4$jurisdiction %>% unique()%in%focal_jur,"gray30","gray80")
+  names(colVec_jur)<-d4$jurisdiction %>% unique()
+  
+  ######
+  #make graph and add formula to it
+  G4 <- d4 %>% subset(.,!jurisdiction%in%focal_jur) %>%  ggplot(.,aes(x=year,y=rank,group=jurisdiction),stroke=.5)+
+  #First add nonfocal countries in a less obtrusive color
+  geom_point_interactive(show.legend=F,size=1.5,color="gray80",shape=19,
+                         aes(data_id=jurisdiction,tooltip=paste0(toupper(jurisdiction), "\nYear: ",year,"\nRank: ",rank)),
+                         hover_css="stroke: #6812d1;fill: #6812d1;")+
+  geom_smooth_interactive(show.legend=F,method="lm",se=F,size=.5,formula='y~x',color="gray80",size=.8,
+                          aes(data_id=jurisdiction,tooltip=hoverText),
+                          hover_css="stroke: #6812d1;")+
+  ggGalactic(font.cex =.6)+scale_x_continuous(breaks=seq(2006,2018,3),limits=c(2006,2018))+scale_y_reverse(limits=c(45,1),breaks=c(1,seq(45,1,-5)))+
+  
+    #Now add on your focal countries so they look distinct
+  geom_point_interactive(inherit.aes=F, data=subset(d4,jurisdiction%in%focal_jur&complete.cases(rank)),
+                           show.legend=T,size=1.85,color="gray30",
+                         aes(shape=colCode,data_id=jurisdiction,x=year,y=rank,
+                             tooltip=paste0(toupper(jurisdiction), "\nYear: ",year,"\nRank: ",rank)),
+                         hover_css="stroke: #6812d1;fill: #6812d1;")+
+  geom_smooth_interactive(inherit.aes=F, data=subset(d4,jurisdiction%in%focal_jur&complete.cases(rank)),
+                          show.legend=T,method="lm",se=F,size=1,formula='y~x',size=.8,color="gray30",
+                          aes(x=year,y=rank,data_id=jurisdiction,tooltip=hoverText,linetype=colCode),
+                          hover_css="stroke: #6812d1;")+
+    scale_shape_manual(name="Focal Jurisdictions:",values=c(24,22,23),labels=sort(focal_jur,decreasing = T))+
+    scale_linetype_manual(name="Focal Jurisdictions:",values=1:3,labels=sort(focal_jur,decreasing = T))+
+  ylab("Overall PISA Rank")+
+    labs(title="Change in PISA scores for 41 countries and the OECD average",
+         subtitle="Mouse over a trendline to get the line equation and other info")+
+    theme(legend.position="bottom",legend.background = element_rect(fill="gray94",color="transparent" ),
+          legend.key=element_rect("gray98"),legend.key.width=unit(22,"pt"), 
+          legend.text=element_text(size=8),
+          plot.title=element_text(size=11),plot.subtitle=element_text(size=9,color="#6812d1"),
+          axis.title=element_text(size=10))+ xlab("")
+    
+  
+```
+</details>
+
+```{r plot-4, results="show", fig.width=12, fig.height=6}
+# Data: combined average scores for the US
+girafe(print(G4))
+```
