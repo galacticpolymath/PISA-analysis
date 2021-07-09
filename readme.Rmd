@@ -1,6 +1,7 @@
 ---
 title: "Analysis of US change in performance on the PISA assessment 2000-2018 as an application of slope"
-output: html_document
+output: 
+  html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -184,8 +185,11 @@ d4$hoverText<-hoverText[match(d4$jurisdiction,names(hoverText))]
   geom_smooth_interactive(show.legend=F,method="lm",se=F,size=.5,formula='y~x',color="gray80",size=.8,
                           aes(data_id=jurisdiction,tooltip=hoverText),
                           hover_css="stroke: #6812d1;")+
-  ggGalactic(font.cex =.6)+scale_x_continuous(breaks=seq(2006,2018,3),limits=c(2006,2018))+scale_y_reverse(limits=c(45,1),breaks=c(1,seq(45,1,-5)))+
-  
+    #Add custom styling for Galactic Polymath
+    ggGalactic(font.cex =.6)+
+    #Scale axes
+    scale_x_continuous(breaks=seq(2006,2018,3),limits=c(2006,2018))+scale_y_reverse(limits=c(44,-2),breaks=c(1,seq(45,1,-5)))+
+    
     #Now add on your focal countries so they look distinct
   geom_point_interactive(inherit.aes=F, data=subset(d4,jurisdiction%in%focal_jur&complete.cases(rank)),
                            show.legend=T,size=1.85,color="gray30",
@@ -213,5 +217,8 @@ d4$hoverText<-hoverText[match(d4$jurisdiction,names(hoverText))]
 
 ```{r plot-4, results="show", fig.width=12, fig.height=6}
 # Data: combined average scores for the US
-girafe(print(G4))
+girafe(print(G4),width_svg=12,height_svg=6,options = list(
+    opts_hover_inv(css = "opacity:0.5;"),
+    opts_hover(css = "stroke-width:2;")
+  ))
 ```
