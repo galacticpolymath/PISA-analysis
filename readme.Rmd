@@ -12,8 +12,14 @@ knitr::opts_chunk$set(echo = TRUE, warning=F,message=F)
 > Analysis by [Matt Wilkins, PhD](https://www.mattwilkinsbio.com)  
   Data downloaded from the [National Center for Education Statistics](https://nces.ed.gov/surveys/pisa/idepisa/report.aspx?p=1%C3%81RMS%C3%811%C3%8120183%C3%8020153%C3%8020123%C3%8020093%C3%8020063%C3%8020033%C3%8020003%C3%81PVMATH%C3%81TOTAL%C3%81IN3%C3%80AUS%C3%80AUT%C3%80BEL%C3%80CAN%C3%80CHL%C3%80COL%C3%80CZE%C3%80DNK%C3%80EST%C3%80FIN%C3%80FRA%C3%80DEU%C3%80GRC%C3%80HUN%C3%80ISL%C3%80IRL%C3%80ISR%C3%80ITA%C3%80JPN%C3%80KOR%C3%80LVA%C3%80LUX%C3%80MEX%C3%80NLD%C3%80NZL%C3%80NOR%C3%80POL%C3%80PRT%C3%80SVK%C3%80SVN%C3%80ESP%C3%80SWE%C3%80CHE%C3%80TUR%C3%80GBR%C3%80USA%C3%80RUS%C3%80QCN%C3%80SGP%C3%80ARE%C3%80VNM%C3%81MN%C3%82MN%C3%81Y%C3%82J%C3%810%C3%810%C3%8137%C3%81N&Lang=1033)
 
-##### Just a simple look at [PISA (Programme for International Student Assessment)](https://nces.ed.gov/surveys/pisa/index.asp) statistics for the US and a few other jurisdictions
+##### An interactive plot of [PISA (Programme for International Student Assessment)](https://nces.ed.gov/surveys/pisa/index.asp) statistics for the US, 41 other countries, and the OECD average, showing slopes and intercepts from a linear model fit.
+<div style="position: relative; overflow: hidden; overflow-y: hidden; padding-top:101%;">
+<iframe src="PISA_interactive.html" 
+        style="border: 0; position: absolute; top:0; left:0; width: 100%; height:100%; overflow: hidden;"
+        title="Data visual showing PISA combined subject scores as ranks for the 39 jurisdictions"/>
+</div>
 
+### See a step by step analysis (with R code) below:
 1. First, we'll plot math, reading, and science scores for available PISA data from 2000-2018 for the US and a few "jurisdictions" of interest.
 
 Below, I include the [R](https://www.r-project.org/) code to wrangle data and generate figures.
@@ -25,7 +31,7 @@ Below, I include the [R](https://www.r-project.org/) code to wrangle data and ge
 require(remotes)
 install_github("galacticpolymath/galacticPubs") #custom theme stuff
 require(pacman)
-p_load(ggplot2,readxl,dplyr,galacticPubs,reshape2,ggiraph)
+p_load(ggplot2,readxl,dplyr,galacticPubs,reshape2,ggiraph,widgetframe,htmlwidgets)
 d<-read_xlsx("data/pisa-data_2000-2018_tidy.xlsx")
 #Rename Long name(s)
 d$jurisdiction <- recode(d$jurisdiction,`International Average (OECD Countries)`="Avg of OECD Countries")
@@ -120,7 +126,7 @@ G3
 ----
 #### But maybe raw points are not very meaningful. How have ranks changed?
 
-These are the subset of countries (+the OECD average) included in the ranks:
+These are the subset of 41 countries (and the OECD average) included in the ranks:
 <details>
   <summary style="color: #7A7A7A"> Click for code & country/jurisdiction list </summary>
 ```{r results='show'}
@@ -138,7 +144,7 @@ d4$jurisdiction %>% unique()
 And here is the plot of country ranks by combined PISA averages for science, math, and reading.
 <details>
   <summary style="color: #7A7A7A"> Click for code </summary>
-```{r analysis-4-ranks, results='show', fig.width=12, fig.height=6}
+```{r analysis-4-ranks, results='hide'}
   #get models for all countries & make hover text summary
   hoverText<-sapply(unique(d4$jurisdiction),function(x){
       d_x<-subset(d4,jurisdiction==x&complete.cases(rank))
@@ -188,7 +194,7 @@ d4$hoverText<-hoverText[match(d4$jurisdiction,names(hoverText))]
     #Add custom styling for Galactic Polymath
     ggGalactic(font.cex =.6)+
     #Scale axes
-    scale_x_continuous(breaks=seq(2006,2018,3),limits=c(2006,2018))+scale_y_reverse(limits=c(44,-2),breaks=c(1,seq(45,1,-5)))+
+    scale_x_continuous(breaks=seq(2006,2018,3),limits=c(2006,2018))+scale_y_reverse(limits=c(44,0),breaks=c(1,seq(45,1,-5)))+
     
     #Now add on your focal countries so they look distinct
   geom_point_interactive(inherit.aes=F, data=subset(d4,jurisdiction%in%focal_jur&complete.cases(rank)),
@@ -210,15 +216,25 @@ d4$hoverText<-hoverText[match(d4$jurisdiction,names(hoverText))]
           legend.text=element_text(size=8),
           plot.title=element_text(size=11),plot.subtitle=element_text(size=9,color="#6812d1"),
           axis.title=element_text(size=10))+ xlab("")
+  
+  # Data: combined average scores for the US
+girafe(print(G4),width_svg=6,height_svg=6,options = list(
+    opts_hover_inv(css = "opacity:0.5;"),
+    opts_hover(css = "stroke-width:2;")
+  ))
     
   
 ```
 </details>
 
-```{r plot-4, results="show", fig.width=12, fig.height=6}
-# Data: combined average scores for the US
-girafe(print(G4),width_svg=12,height_svg=6,options = list(
+```{r plot-4, results="show",echo=T}
+w<-girafe(print(G4),width_svg=6,height_svg=6,options = list(
     opts_hover_inv(css = "opacity:0.5;"),
     opts_hover(css = "stroke-width:2;")
   ))
+w
+w %>% frameableWidget() %>% saveWidget(.,"interactive_PISA_ranks.html")
 ```
+
+
+
